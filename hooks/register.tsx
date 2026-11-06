@@ -3,21 +3,21 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { View } from '../types'
 
-// Was die Leiste zeigt; jede Änderung zeichnet sie neu.
+// What the band shows; every change redraws it.
 const view = atom({ plugin: 'budget-guard', key: 'view' } as const, null)
 const STATS = 'budget-guard-stats'
 
 type Sample = { t: number; used: number }
 
-// $.store teilen sich alle laufenden Sessions dieses Rechners live (gemessen).
+// $.store is shared live by all running sessions on this machine (measured).
 async function load($: EngineInterface): Promise<Sample[]> {
   const list = await $.store.get('samples')
   return Array.isArray(list) ? list : []
 }
 
-// Anstiege im Fenster. Liegt zwischen zwei Messwerten der Fensteranfang, zählt
-// nur der Anteil im Fenster (gleichmäßig verteilt angenommen). Ein Wochen-Reset
-// (Wert fällt) zählt 0.
+// Increase within the window. If the window start falls between two samples,
+// only the share inside the window counts (assumed evenly spread). A weekly
+// reset (value drops) counts as 0.
 function spentIn(list: Sample[], now: number, windowMs: number): number {
   const start = now - windowMs
   let sum = 0
@@ -31,8 +31,8 @@ function spentIn(list: Sample[], now: number, windowMs: number): number {
   return sum
 }
 
-// Behält den Verlauf plus den letzten Wert davor. Gleiche Werte in Folge werden
-// auf Anfang und Ende der Strecke verkürzt; die Rechnung bleibt dieselbe.
+// Keeps the history plus the last sample before it. Runs of equal values are
+// shortened to their first and last sample; the math stays the same.
 function prune(list: Sample[], now: number, keepMs: number): Sample[] {
   const first = list.findIndex(s => s.t > now - keepMs)
   const kept = first === -1 ? list.slice(-1) : list.slice(Math.max(0, first - 1))
@@ -44,12 +44,12 @@ function prune(list: Sample[], now: number, keepMs: number): Sample[] {
   return out
 }
 
-// Rechnet aus dem gemeinsamen Protokoll, setzt bei Überschreitung die Sperre
-// (hält für alle Sessions, bis /budget-guard-reset) und aktualisiert die Leiste.
+// Computes from the shared log, sets the lock when over budget (holds for all
+// sessions until /budget-guard-reset) and updates the band.
 async function check($: EngineInterface, windowMs: number, max: number): Promise<{ spent: number; stopped: boolean }> {
   const list = await load($)
   const now = await $.clock.now()
-  // Nach /budget-guard-reset zählt nur, was danach kam.
+  // After /budget-guard-reset only what came later counts.
   const since = Number((await $.store.get('since')) ?? 0)
   const spent = spentIn(list, now, Math.min(windowMs, now - since))
   let stopped = (await $.store.get('stopped')) === true
@@ -67,22 +67,23 @@ async function check($: EngineInterface, windowMs: number, max: number): Promise
 }
 
 function openStats($: EngineInterface) {
-  return $.ui.open({ id: STATS, title: 'Budget-Statistik' })
+  return $.ui.open({ id: STATS, title: 'Budget stats' })
 }
 
 const DAY_MS = 24 * 3_600_000
-const WEEKDAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function dayLabel(d: Date): string {
-  return `${WEEKDAYS[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`
+  return `${WEEKDAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`
 }
 
-// Anstiege je Kalendertag (die letzten `days`) und je Uhrzeit, in Ortszeit.
-// ponytail: ein Anstieg zählt ganz zur Zeit des Messwerts, der ihn zeigt; nach langen Lücken ohne Messwert anteilig verteilen, falls das verzerrt.
+// Increase per calendar day (the last `days`) and per hour of day, in local time.
+// ponytail: an increase counts fully at the sample that shows it; spread it across long gaps without samples if that skews the picture.
 function distribution(list: Sample[], now: number, days: number) {
   const perDay = new Map<string, number>()
   const today = new Date(now)
-  // Über das Datum gezählt, nicht in 24-h-Schritten: Zeitumstellungen überspringen sonst einen Tag.
+  // Counted by date, not in 24 h steps: DST changes would skip a day otherwise.
   for (let k = days - 1; k >= 0; k--) perDay.set(dayLabel(new Date(today.getFullYear(), today.getMonth(), today.getDate() - k)), 0)
   const perHour = Array<number>(24).fill(0)
   for (const [i, b] of list.entries()) {
@@ -112,32 +113,32 @@ function resetText(iso: string | null): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const day = WEEKDAYS[d.getDay()]
-  return ` · Reset ${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return ` · Resets ${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
 export const register: Register = (on, options) => {
-  // Nutzer-Config: nur positive Zahlen, sonst Standard (0 hieße Dauersperre bzw. nie messen).
+  // User config: positive numbers only, else the default (0 would mean a permanent lock or never measuring).
   const positive = (v: unknown, fallback: number) => (Number(v) > 0 ? Number(v) : fallback)
   const max = positive(options.maxPercent, 10)
   const hours = positive(options.windowHours, 5)
   const windowMs = hours * 3_600_000
-  // Verlauf zum späteren Nachsehen, mindestens aber das Fenster.
+  // History kept for the stats, at least as long as the window.
   const historyDays = Math.round(positive(options.historyDays, 7))
   const keepMs = Math.max(windowMs, historyDays * DAY_MS)
   let mainTurn: string | undefined
 
   const reason = (s: number) =>
-    `budget-guard: Konto hat in ${hours} h ${Math.round(s)} von max. ${max} Prozentpunkten des Wochenlimits verbraucht. ` +
-    `Alle Agents sind pausiert; nichts weiter tun. Nur der Mensch kann das mit /budget-guard-reset lösen.`
+    `budget-guard: the account used ${Math.round(s)} of max. ${max} percentage points of its weekly limit in ${hours} h. ` +
+    `All agents are paused; do nothing further. Only the human can lift this with /budget-guard-reset.`
 
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'budget-guard-reset',
-      description: 'Budget-Guard für alle Sessions freigeben: das Fenster ab jetzt neu zählen',
+      description: 'Release budget-guard for all sessions and count the window from now',
     })
-    await $.command.register({ name: STATS, description: 'Budget-Guard: Verbrauch je Tag und Uhrzeit anzeigen' })
+    await $.command.register({ name: STATS, description: 'Show budget-guard usage per day and hour' })
     await check($, windowMs, max)
-    // Fenster gleitet und andere Sessions messen mit: jede Minute neu rechnen (lokal, keine Tokens).
+    // The window slides and other sessions measure too: recompute every minute (local, no tokens).
     $.clock.every(60_000, () => void check($, windowMs, max))
     return next(e)
   })
@@ -146,22 +147,22 @@ export const register: Register = (on, options) => {
     await $.store.set('since', await $.clock.now())
     await $.store.set('stopped', false)
     await check($, windowMs, max)
-    return { text: `budget-guard: freigegeben, zählt ab jetzt neu (max. ${max} Punkte in ${hours} h).` }
+    return { text: `budget-guard: released, counting from now (max. ${max} points in ${hours} h).` }
   })
 
   on('command.run', { command: STATS }, async $ => {
     await openStats($)
-    return { text: 'budget-guard: Statistik geöffnet.' }
+    return { text: 'budget-guard: stats opened.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: STATS }, async ($, e) => {
-    await read($, view) // zeichnet neu, sobald ein Messwert kommt
+    await read($, view) // redraws whenever a sample arrives
     const { Box, Text } = $.ui.resolve(e)
     const { perDay, perHour } = distribution(await load($), await $.clock.now(), historyDays)
     const top = Math.max(1, ...perDay.map(([, v]) => v))
     return (
       <Box flexDirection="column">
-        <Text bold>Je Tag (Prozentpunkte des Wochenlimits)</Text>
+        <Text bold>Per day (percentage points of the weekly limit)</Text>
         {perDay.map(([day, v]) => (
           <Text>
             <Text dimColor>{day} </Text>
@@ -170,7 +171,7 @@ export const register: Register = (on, options) => {
           </Text>
         ))}
         <Text> </Text>
-        <Text bold>Je Uhrzeit</Text>
+        <Text bold>Per hour of day</Text>
         <Text color="success">{spark(perHour)}</Text>
         <Text dimColor>0     6     12    18   23</Text>
       </Box>
@@ -186,7 +187,7 @@ export const register: Register = (on, options) => {
     const week = e.rateLimits.find(r => r.kind === 'seven_day')
     if (week) {
       const now = await $.clock.now()
-      // ponytail: kein Lock; ein gleichzeitiger Schreiber kann einen Messwert verlieren, der nächste holt ihn nach.
+      // ponytail: no lock; a concurrent writer can lose a sample, the next one catches up.
       const list = prune(
         [...(await load($)), { t: now, used: week.percentUsed }].sort((a, b) => a.t - b.t),
         now,
@@ -203,8 +204,8 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  // Vor jeder Modellanfrage, auch der von Subagents: über Budget beantwortet der
-  // Guard selbst und beendet den Turn. Keine Anfrage an die API, keine Tokens.
+  // Before every model request, subagents included: over budget the guard answers
+  // itself and ends the turn. No API request, no tokens.
   on('turn.step', async function* ($, e, next) {
     const { spent: s, stopped } = await check($, windowMs, max)
     if (!stopped) return yield* next(e)
@@ -214,11 +215,11 @@ export const register: Register = (on, options) => {
     return { turnId: e.turnId, index: e.index, answer: text, toolUses: [], stopReason: 'end_turn', usage: null }
   })
 
-  // Greift auch bei Subagents und in Sessions, die selbst nichts gemessen haben.
+  // Also applies to subagents and to sessions that measured nothing themselves.
   on('tool.call', async ($, e, next) => {
     const { spent: s, stopped } = await check($, windowMs, max)
     return stopped ? { deny: reason(s) } : next(e)
-  }).catch(($, e, next) => next(e)) // ein Fehler im Guard soll nicht alles blockieren
+  }).catch(($, e, next) => next(e)) // an error in the guard must not block everything
 
   on('prompt.submit', async ($, e, next) => {
     const { spent: s, stopped } = await check($, windowMs, max)
@@ -237,7 +238,7 @@ export const register: Register = (on, options) => {
         <Text color={color}>{bar(v.spent, max)}</Text>
         <Text> {Math.round(v.spent)}/{max}</Text>
         <Text dimColor>
-          {v.week === null ? '' : ` · Woche ${v.week}%`}
+          {v.week === null ? '' : ` · Week ${v.week}%`}
           {resetText(v.resetsAt)}
         </Text>
       </Text>
@@ -246,16 +247,16 @@ export const register: Register = (on, options) => {
       <Box>
         {line}
         <Text> </Text>
-        <Button key="stats" label="Statistik" plain dimColor onPress={() => void openStats($)} />
+        <Button key="stats" label="Stats" plain dimColor onPress={() => void openStats($)} />
       </Box>
     )
     if (!v.stopped) return row
     return (
       <Box flexDirection="column">
         {row}
-        <Text color="error">Budget-Guard: alle Agents pausiert, keine Anfragen gehen raus.</Text>
+        <Text color="error">budget-guard: all agents paused, no requests go out.</Text>
         <Text>
-          Lösen: <Text bold>/budget-guard-reset</Text>
+          Lift with <Text bold>/budget-guard-reset</Text>
         </Text>
       </Box>
     )

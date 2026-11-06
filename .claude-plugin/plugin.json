@@ -1,7 +1,7 @@
 {
   "name": "budget-guard",
-  "version": "0.8.0",
-  "description": "Stoppt alle Sessions, wenn das Konto im gleitenden Zeitfenster mehr als X Prozentpunkte des 7-Tage-Limits verbraucht",
+  "version": "0.8.1",
+  "description": "Stops all sessions when the account burns more than X percentage points of its 7-day limit within a sliding window",
   "author": {
     "name": "Alex Beutl"
   },
@@ -9,20 +9,20 @@
   "userConfig": {
     "maxPercent": {
       "type": "number",
-      "title": "Max. Prozentpunkte des Wochenlimits pro Fenster",
-      "description": "Steigt das seven_day-Limit des Kontos im Fenster um mehr als so viele Prozentpunkte, werden alle Sessions gestoppt.",
+      "title": "Max. percentage points of the weekly limit per window",
+      "description": "If the account's seven_day limit rises by more than this within the window, all sessions are stopped.",
       "default": 10
     },
     "windowHours": {
       "type": "number",
-      "title": "Fensterlänge in Stunden",
-      "description": "Länge des gleitenden Fensters.",
+      "title": "Window length in hours",
+      "description": "Length of the sliding window.",
       "default": 5
     },
     "historyDays": {
       "type": "number",
-      "title": "Verlauf in Tagen",
-      "description": "Wie lange Messwerte aufbewahrt werden (mindestens so lang wie das Fenster).",
+      "title": "History in days",
+      "description": "How long samples are kept (at least as long as the window).",
       "default": 7
     }
   },

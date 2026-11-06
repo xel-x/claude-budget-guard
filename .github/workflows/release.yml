@@ -1,4 +1,4 @@
-# Tag v<version> pushen (z. B. v0.8.0) → GitHub-Release mit generierten Notes.
+# Push a tag v<version> (e.g. v0.8.0) → GitHub release with generated notes.
 name: release
 on:
   push:

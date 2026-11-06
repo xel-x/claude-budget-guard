@@ -37,17 +37,17 @@ test('account-wide sliding window', { options: { maxPercent: 10, windowHours: 5,
   now += 2 * H
   await $.session.measure(week(51)) // +5 → 11
   expect(await denied()).toMatch(/budget-guard/)
-  now += 3 * H // der +6-Anstieg ist älter als 5 h, die Sperre hält trotzdem
+  now += 3 * H // the +6 is older than 5 h, the lock holds anyway
   expect(await denied()).toMatch(/budget-guard/)
   await $.command.run(RESET)
   expect(await denied()).toBeUndefined()
 
-  // Lange Pause ohne Messwert: 10 h, +12. Nur 5/10 davon liegen im Fenster → +6.
+  // Long pause without samples: 10 h, +12. Only 5/10 of it is in the window → +6.
   now += 10 * H
   await $.session.measure(week(63))
   expect(await denied()).toBeUndefined()
 
-  await $.session.measure(week(2)) // Wochen-Reset zählt nicht
+  await $.session.measure(week(2)) // weekly reset does not count
   expect(await denied()).toBeUndefined()
 
   now += H
@@ -60,13 +60,13 @@ test('account-wide sliding window', { options: { maxPercent: 10, windowHours: 5,
   expect(reachedApi).toBe(false)
   expect(step.answer).toMatch(/budget-guard/)
   const stopped = await $.ui.mount({ plugin: 'budget-guard', surface: 'terminal', component: 'AbovePrompt', props: BAND })
-  const hint = await stopped.find({ type: 'Text', text: /Lösen/ })
-  expect(hint?.text).toMatch(/Lösen: \/budget-guard-reset/)
+  const hint = await stopped.find({ type: 'Text', text: /Lift with/ })
+  expect(hint?.text).toMatch(/Lift with \/budget-guard-reset/)
   await stopped.unmount()
   await $.command.run(RESET)
   expect(await denied()).toBeUndefined()
 
-  // Verlauf bleibt über Fenster und Reset hinaus; gleiche Werte in Folge werden verkürzt.
+  // History outlives window and reset; runs of equal values are shortened.
   for (let i = 0; i < 5; i++) {
     now += 60_000
     await $.session.measure(week(20))
@@ -116,13 +116,13 @@ test('history length is configurable', { options: { maxPercent: 10, windowHours:
     await $.session.measure(week(used))
     now += 10 * H
   }
-  // 1 Tag Verlauf: Werte älter als 24 h fallen weg, bis auf den letzten davor.
+  // 1 day of history: samples older than 24 h are dropped, except the last one before.
   const samples = store.get('samples') as { t: number }[]
   expect(samples.length).toBe(4)
 })
 
 test('stats pane shows usage per day and hour', { options: { historyDays: 3 } }, async ($, on) => {
-  let now = new Date(2026, 10, 6, 15, 0).getTime() // Fr 06.11., 15 Uhr Ortszeit
+  let now = new Date(2026, 10, 6, 15, 0).getTime() // Fri Nov 6, 3 pm local time
   const store = new Map<string, unknown>()
   let opened = ''
   on('clock.now', () => ({ value: now }))
@@ -137,7 +137,7 @@ test('stats pane shows usage per day and hour', { options: { historyDays: 3 } },
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
   await $.session.measure(week(10))
   now += H
-  await $.session.measure(week(14)) // +4 am Fr um 16 Uhr
+  await $.session.measure(week(14)) // +4 on Fri at 4 pm
 
   const band = await $.ui.mount({ plugin: 'budget-guard', surface: 'desktop', component: 'AbovePrompt', props: BAND })
   await band.press({ key: 'stats' })
@@ -147,10 +147,10 @@ test('stats pane shows usage per day and hour', { options: { historyDays: 3 } },
   for (const surface of ['terminal', 'desktop'] as const) {
     const pane = await $.ui.mount({
       plugin: 'budget-guard', surface, component: 'Pane', requestId: 'budget-guard-stats',
-      props: { title: 'Budget-Statistik', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
+      props: { title: 'Budget stats', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
     })
-    expect((await pane.find({ type: 'Text', text: /^Fr 06\.11\./ }))?.text).toMatch(/██████████ 4$/)
-    expect((await pane.find({ type: 'Text', text: /^Mi 04\.11\./ }))?.text).toMatch(/░ 0$/)
+    expect((await pane.find({ type: 'Text', text: /^Fri Nov 06/ }))?.text).toMatch(/██████████ 4$/)
+    expect((await pane.find({ type: 'Text', text: /^Wed Nov 04/ }))?.text).toMatch(/░ 0$/)
     expect((await pane.find({ type: 'Text', text: /^[·▁-█]{24}$/ }))?.text).toBe('·'.repeat(16) + '█' + '·'.repeat(7))
     await pane.unmount()
   }

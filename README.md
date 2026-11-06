@@ -1,58 +1,61 @@
 # budget-guard
 
-Ein Agent, der aus dem Ruder läuft, frisst in ein paar Stunden das halbe Wochenlimit. budget-guard
-beobachtet, wie stark das 7-Tage-Limit deines Kontos in einem gleitenden Fenster steigt
-(Standard: 10 Prozentpunkte in 5 Stunden). Wird es mehr, stoppt er **alle** laufenden Sessions
-und Subagents, bevor die nächste Anfrage rausgeht.
+An agent running wild can eat half your weekly limit in a few hours. budget-guard watches how fast
+your account's 7-day limit rises within a sliding window (default: 10 percentage points in 5 hours).
+Go over that and it stops **all** running sessions and subagents before the next request goes out.
 
-Über dem Prompt zeigt eine Leiste den Verbrauch im Fenster, den Wochenstand und den nächsten Reset:
+Why now: since Max 20x became [Ultra](https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan),
+verified accounts no longer have a five-hour limit, only the weekly one. Nothing slows a runaway
+agent down anymore before the week is gone. budget-guard brings that brake back, on your terms.
 
-![budget-guard in der Desktop-App](docs/budget-guard-desktop.png)
-![budget-guard im Terminal](docs/budget-guard-terminal.png)
+A band above the prompt shows usage in the window, the weekly total and the next reset:
 
-Ist die Sperre aktiv, gibst du mit `/budget-guard-reset` wieder frei; das Fenster zählt dann ab jetzt neu.
+![budget-guard in the desktop app](docs/budget-guard-desktop.png)
+![budget-guard in the terminal](docs/budget-guard-terminal.png)
 
-Ein Klick auf **Statistik** in der Leiste (oder `/budget-guard-stats`) öffnet ein Panel mit dem Verbrauch
-je Tag und je Uhrzeit, so siehst du, wann das Budget eigentlich draufgeht.
+Once the lock is on, `/budget-guard-reset` lifts it; the window then counts from that moment.
 
-**Einstellungen** (beim Installieren abgefragt):
+Click **Stats** in the band (or run `/budget-guard-stats`) to open a pane with usage per day and per
+hour of day, so you can see where the budget actually goes.
 
-| Option | Standard | Bedeutung |
+**Options** (asked on install):
+
+| Option | Default | Meaning |
 | --- | --- | --- |
-| `maxPercent` | 10 | Max. Prozentpunkte des Wochenlimits pro Fenster |
-| `windowHours` | 5 | Länge des gleitenden Fensters in Stunden |
-| `historyDays` | 7 | Wie lange Messwerte aufbewahrt werden |
+| `maxPercent` | 10 | Max. percentage points of the weekly limit per window |
+| `windowHours` | 5 | Length of the sliding window in hours |
+| `historyDays` | 7 | How long samples are kept |
 
-Alles läuft lokal: Der Guard liest nur die Limit-Werte, die Claude Code ohnehin bekommt, und
-schickt selbst keine Anfragen. Er nutzt weder Shell noch Dateipfade und läuft deshalb auf macOS,
-Linux und Windows gleich.
+Everything stays local: the guard only reads the limit values Claude Code already receives and sends
+no requests of its own. It uses no shell and no file paths, so it runs the same on macOS, Linux and
+Windows.
 
-## Installation
+## Install
 
-In einer Claude-Code-Session im Terminal:
+In a Claude Code session in the terminal:
 
 ```
 /plugin install budget-guard --marketplace xel-x/claude-budget-guard
 ```
 
-Dann `y` für den Marketplace und einen Scope wählen. Oder aus der Shell:
+Then `y` to add the marketplace and pick a scope. Or from a shell:
 
 ```
 claude plugin install budget-guard --marketplace xel-x/claude-budget-guard
 ```
 
-In der Desktop-App: **+** neben dem Prompt → Plugins → Add marketplace `xel-x/claude-budget-guard` → Add plugin.
+In the desktop app: **+** next to the prompt → Plugins → Add marketplace `xel-x/claude-budget-guard` → Add plugin.
 
-## Entwickeln
+## Development
 
 ```
-claude --plugin-dir .        # lokal ausprobieren
-claude plugin test .         # Tests
+claude --plugin-dir .        # try it locally
+claude plugin test .         # run the tests
 ```
 
-Release: Version in `.claude-plugin/plugin.json` hochziehen, dann `git tag v0.8.0 && git push --tags`.
-Die Action legt den GitHub-Release an.
+Release: bump `version` in `.claude-plugin/plugin.json`, then `git tag v0.9.0 && git push --tags`.
+The workflow creates the GitHub release.
 
-## Lizenz
+## License
 
 MIT
