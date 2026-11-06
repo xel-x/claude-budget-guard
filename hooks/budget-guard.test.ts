@@ -149,6 +149,7 @@ test('stats pane shows usage per day and hour', { options: { historyDays: 3 } },
       plugin: 'budget-guard', surface, component: 'Pane', requestId: 'budget-guard-stats',
       props: { title: 'Budget stats', isFocused: false, bodyColumns: 60, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} },
     })
+    expect((await pane.find({ type: 'Text', text: /^\w{3} \w{3} \d\d / }))?.text).toMatch(/^Fri Nov 06/) // newest first
     expect((await pane.find({ type: 'Text', text: /^Fri Nov 06/ }))?.text).toMatch(/██████████ 4$/)
     expect((await pane.find({ type: 'Text', text: /^Wed Nov 04/ }))?.text).toMatch(/░ 0$/)
     expect((await pane.find({ type: 'Text', text: /^[·▁-█]{24}$/ }))?.text).toBe('·'.repeat(16) + '█' + '·'.repeat(7))

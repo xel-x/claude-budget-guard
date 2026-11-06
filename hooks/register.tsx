@@ -66,8 +66,9 @@ async function check($: EngineInterface, windowMs: number, max: number): Promise
   return { spent, stopped }
 }
 
-function openStats($: EngineInterface) {
-  return $.ui.open({ id: STATS, title: 'Budget stats' })
+// Asks for enough rows to show everything: header lines plus one per day.
+function openStats($: EngineInterface, days: number) {
+  return $.ui.open({ id: STATS, title: 'Budget stats', rows: days + 6 })
 }
 
 const DAY_MS = 24 * 3_600_000
@@ -147,12 +148,12 @@ export const register: Register = (on, options) => {
     await $.store.set('since', await $.clock.now())
     await $.store.set('stopped', false)
     await check($, windowMs, max)
-    return { text: `budget-guard: released, counting from now (max. ${max} points in ${hours} h).` }
+    return { text: `Released, counting from now (max. ${max} points in ${hours} h).` }
   })
 
   on('command.run', { command: STATS }, async $ => {
-    await openStats($)
-    return { text: 'budget-guard: stats opened.' }
+    await openStats($, historyDays)
+    return { text: 'Stats opened.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: STATS }, async ($, e) => {
@@ -162,18 +163,18 @@ export const register: Register = (on, options) => {
     const top = Math.max(1, ...perDay.map(([, v]) => v))
     return (
       <Box flexDirection="column">
-        <Text bold>Per day (percentage points of the weekly limit)</Text>
-        {perDay.map(([day, v]) => (
+        <Text bold>Per hour of day</Text>
+        <Text color="success">{spark(perHour)}</Text>
+        <Text dimColor>0     6     12    18   23</Text>
+        <Text> </Text>
+        <Text bold>Per day, newest first (percentage points of the weekly limit)</Text>
+        {perDay.toReversed().map(([day, v]) => (
           <Text>
             <Text dimColor>{day} </Text>
             <Text color="success">{bar(v, top)}</Text>
             <Text> {v}</Text>
           </Text>
         ))}
-        <Text> </Text>
-        <Text bold>Per hour of day</Text>
-        <Text color="success">{spark(perHour)}</Text>
-        <Text dimColor>0     6     12    18   23</Text>
       </Box>
     )
   })
@@ -197,7 +198,7 @@ export const register: Register = (on, options) => {
       await update($, view, v => ({ spent: v?.spent ?? 0, stopped: v?.stopped ?? false, week: week.percentUsed, resetsAt: week.resetsAt ?? null }))
       const { spent: s, stopped } = await check($, windowMs, max)
       if (stopped) {
-        $.ui.toast(reason(s))
+        $.ui.toast(reason(s).replace(/^budget-guard: /, '')) // the engine prefixes toasts with the plugin name
         if (mainTurn) await $.turn.abort({ turnId: mainTurn }).catch(() => {})
       }
     }
@@ -247,7 +248,7 @@ export const register: Register = (on, options) => {
       <Box>
         {line}
         <Text> </Text>
-        <Button key="stats" label="Stats" plain dimColor onPress={() => void openStats($)} />
+        <Button key="stats" label="Stats" plain dimColor onPress={() => void openStats($, historyDays)} />
       </Box>
     )
     if (!v.stopped) return row
