@@ -151,8 +151,9 @@ test('stats pane shows usage per day and hour', { options: { historyDays: 3 } },
     })
     expect((await pane.find({ type: 'Text', text: /^\w{3} \w{3} \d\d / }))?.text).toMatch(/^Fri Nov 06/) // newest first
     expect((await pane.find({ type: 'Text', text: /^Fri Nov 06/ }))?.text).toMatch(/██████████ 4$/)
-    expect((await pane.find({ type: 'Text', text: /^Wed Nov 04/ }))?.text).toMatch(/░ 0$/)
-    expect((await pane.find({ type: 'Text', text: /^[·▁-█]{24}$/ }))?.text).toBe('·'.repeat(16) + '█' + '·'.repeat(7))
+    expect((await pane.find({ type: 'Text', text: /^Wed Nov 04/ }))?.text).toMatch(/ 0$/)
+    expect((await pane.find({ type: 'Text', text: /^15-18/ }))?.text).toBe('15-18 ██████████ 4')
+    expect((await pane.find({ type: 'Text', text: /^12-15/ }))?.text).toBe('12-15            0')
     await pane.unmount()
   }
 })

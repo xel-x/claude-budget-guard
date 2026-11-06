@@ -66,9 +66,9 @@ async function check($: EngineInterface, windowMs: number, max: number): Promise
   return { spent, stopped }
 }
 
-// Asks for enough rows to show everything: header lines plus one per day.
+// Asks for enough rows to show everything: two headings, a gap, 8 time blocks and one row per day.
 function openStats($: EngineInterface, days: number) {
-  return $.ui.open({ id: STATS, title: 'Budget stats', rows: days + 6 })
+  return $.ui.open({ id: STATS, title: 'Budget stats', rows: days + 14 })
 }
 
 const DAY_MS = 24 * 3_600_000
@@ -99,9 +99,19 @@ function distribution(list: Sample[], now: number, days: number) {
   return { perDay: [...perDay], perHour }
 }
 
-function spark(values: number[]): string {
-  const top = Math.max(1, ...values)
-  return values.map(v => (v === 0 ? '·' : '▁▂▃▄▅▆▇█'[Math.min(7, Math.floor((v / top) * 8))])).join('')
+// Sums the 24 hours into 3-hour blocks, labelled "00-03" … "21-24".
+function byBlock(perHour: number[]): [string, number][] {
+  const hh = (h: number) => String(h).padStart(2, '0')
+  return Array.from({ length: 8 }, (_, i) => [
+    `${hh(i * 3)}-${hh(i * 3 + 3)}`,
+    perHour.slice(i * 3, i * 3 + 3).reduce((a, b) => a + b, 0),
+  ])
+}
+
+// A bar without a track (░ draws as a solid block in many fonts); any usage shows at least one block.
+function solidBar(v: number, top: number): string {
+  const n = v > 0 ? Math.max(1, Math.round((v / top) * 10)) : 0
+  return '█'.repeat(n).padEnd(10)
 }
 
 function bar(spent: number, max: number): string {
@@ -160,21 +170,22 @@ export const register: Register = (on, options) => {
     await read($, view) // redraws whenever a sample arrives
     const { Box, Text } = $.ui.resolve(e)
     const { perDay, perHour } = distribution(await load($), await $.clock.now(), historyDays)
-    const top = Math.max(1, ...perDay.map(([, v]) => v))
+    const list = (title: string, rows: [string, number][]) => {
+      const top = Math.max(1, ...rows.map(([, v]) => v))
+      return [
+        <Text bold>{title}</Text>,
+        ...rows.map(([label, v]) => (
+          <Text dimColor={v === 0}>
+            {label} <Text color={v === 0 ? undefined : 'success'}>{solidBar(v, top)}</Text> {v}
+          </Text>
+        )),
+      ]
+    }
     return (
       <Box flexDirection="column">
-        <Text bold>Per hour of day</Text>
-        <Text color="success">{spark(perHour)}</Text>
-        <Text dimColor>0     6     12    18   23</Text>
+        {list('Per day (points of the weekly limit)', perDay.toReversed())}
         <Text> </Text>
-        <Text bold>Per day, newest first (percentage points of the weekly limit)</Text>
-        {perDay.toReversed().map(([day, v]) => (
-          <Text>
-            <Text dimColor>{day} </Text>
-            <Text color="success">{bar(v, top)}</Text>
-            <Text> {v}</Text>
-          </Text>
-        ))}
+        {list('Per time of day, all days', byBlock(perHour))}
       </Box>
     )
   })

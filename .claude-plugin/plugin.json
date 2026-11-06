@@ -1,6 +1,6 @@
 {
   "name": "budget-guard",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Stops all sessions when the account burns more than X percentage points of its 7-day limit within a sliding window",
   "author": {
     "name": "Alex Beutl"
