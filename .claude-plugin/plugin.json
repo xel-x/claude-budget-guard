@@ -1,0 +1,30 @@
+{
+  "name": "budget-guard",
+  "version": "0.8.0",
+  "description": "Stoppt alle Sessions, wenn das Konto im gleitenden Zeitfenster mehr als X Prozentpunkte des 7-Tage-Limits verbraucht",
+  "author": {
+    "name": "Alex Beutl"
+  },
+  "license": "MIT",
+  "userConfig": {
+    "maxPercent": {
+      "type": "number",
+      "title": "Max. Prozentpunkte des Wochenlimits pro Fenster",
+      "description": "Steigt das seven_day-Limit des Kontos im Fenster um mehr als so viele Prozentpunkte, werden alle Sessions gestoppt.",
+      "default": 10
+    },
+    "windowHours": {
+      "type": "number",
+      "title": "Fensterlänge in Stunden",
+      "description": "Länge des gleitenden Fensters.",
+      "default": 5
+    },
+    "historyDays": {
+      "type": "number",
+      "title": "Verlauf in Tagen",
+      "description": "Wie lange Messwerte aufbewahrt werden (mindestens so lang wie das Fenster).",
+      "default": 7
+    }
+  },
+  "types": "./types/index.d.ts"
+}

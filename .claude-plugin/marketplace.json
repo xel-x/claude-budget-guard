@@ -1,0 +1,6 @@
+{
+  "name": "claude-budget-guard",
+  "description": "budget-guard: pausiert alle Claude-Code-Sessions, wenn in kurzer Zeit zu viel vom Wochenlimit draufgeht",
+  "owner": { "name": "Alex Beutl" },
+  "plugins": [{ "name": "budget-guard", "source": "./" }]
+}
