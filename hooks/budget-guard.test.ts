@@ -50,6 +50,19 @@ test('account-wide sliding window', { options: { maxPercent: 10, windowHours: 5,
   await $.session.measure(week(2)) // weekly reset does not count
   expect(await denied()).toBeUndefined()
 
+  // Stale values from other sessions: 2, 3, 2, 3 is +1, not +2.
+  await $.session.measure(week(3))
+  await $.session.measure(week(2))
+  await $.session.measure(week(3))
+  await $.command.run(RESET)
+  now += 1000
+  await $.session.measure(week(3))
+  await $.session.measure(week(12))
+  await $.session.measure(week(11))
+  await $.session.measure(week(12)) // +9 after the reset, not +10
+  expect(await denied()).toBeUndefined()
+  await $.session.measure(week(13)) // +10
+
   now += H
   await $.session.measure(week(20)) // +18
   expect(await denied()).toMatch(/budget-guard/)

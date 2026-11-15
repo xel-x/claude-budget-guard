@@ -15,16 +15,30 @@ async function load($: EngineInterface): Promise<Sample[]> {
   return Array.isArray(list) ? list : []
 }
 
+// Increase shown by each sample over the highest value seen before it. Sessions
+// report slightly stale values (8, 7, 8), so a small dip followed by the same
+// rise must not count twice. A drop of more than 2 points is the weekly reset.
+function gains(list: Sample[]): number[] {
+  let peak = list[0]?.used ?? 0
+  return list.map(({ used }, i) => {
+    if (i === 0) return 0
+    if (used < peak - 2) return ((peak = used), 0)
+    const d = Math.max(0, used - peak)
+    peak = Math.max(peak, used)
+    return d
+  })
+}
+
 // Increase within the window. If the window start falls between two samples,
-// only the share inside the window counts (assumed evenly spread). A weekly
-// reset (value drops) counts as 0.
+// only the share inside the window counts (assumed evenly spread).
 function spentIn(list: Sample[], now: number, windowMs: number): number {
   const start = now - windowMs
+  const g = gains(list)
   let sum = 0
   for (const [i, b] of list.entries()) {
     const a = list[i - 1]
     if (!a || b.t <= start) continue
-    const d = Math.max(0, b.used - a.used)
+    const d = g[i]!
     const dur = b.t - a.t
     sum += dur > 0 ? (d * (b.t - Math.max(a.t, start))) / dur : d
   }
@@ -87,9 +101,9 @@ function distribution(list: Sample[], now: number, days: number) {
   // Counted by date, not in 24 h steps: DST changes would skip a day otherwise.
   for (let k = days - 1; k >= 0; k--) perDay.set(dayLabel(new Date(today.getFullYear(), today.getMonth(), today.getDate() - k)), 0)
   const perHour = Array<number>(24).fill(0)
+  const g = gains(list)
   for (const [i, b] of list.entries()) {
-    const a = list[i - 1]
-    const d = a ? Math.max(0, b.used - a.used) : 0
+    const d = g[i]!
     if (d === 0) continue
     const at = new Date(b.t)
     const day = dayLabel(at)
